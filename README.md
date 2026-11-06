@@ -11,7 +11,12 @@ GitHub only delivers the page. Videos play straight from your disk and are never
 ## Using it
 
 1. Open https://mzhang8.github.io/player/ and click **Choose videos folder…**, then pick
-   `~/Downloads` (or wherever your videos are). Chrome asks to allow the page to view the folder.
+   `~/Downloads/practice-videos` (or wherever your videos are). Chrome asks to allow the page to
+   view the folder.
+
+   Chrome won't let a web page open `~/Downloads`, `~/Desktop` or `~/Documents` themselves ("can't
+   open this folder because it contains system files"), but subfolders inside them are fine — so keep
+   practice videos in their own folder.
 2. Pick a video from the dropdown.
 
 Chrome remembers the folder. On later visits the videos list loads automatically, or (if Chrome
