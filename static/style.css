@@ -1,0 +1,392 @@
+:root {
+  color-scheme: dark;
+  --bg: #15171c;
+  --panel: #1e212a;
+  --border: #2d313c;
+  --text: #e8e9ec;
+  --muted: #9aa0ab;
+  --accent: #5b8cff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+h1 {
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+select, input[type="number"] {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.95rem;
+}
+
+#video-select {
+  min-width: 260px;
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.folder-status {
+  margin: -6px 0 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  min-height: 1em;
+}
+
+.video-wrap {
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+video {
+  width: 100%;
+  max-height: 540px;
+  display: block;
+  background: #000;
+}
+
+.scrub-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.scrub-row span {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.85rem;
+  width: 64px;
+  text-align: center;
+}
+
+input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+.scrub-track {
+  position: relative;
+  flex: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.scrub-base {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  background: var(--border);
+  border-radius: 3px;
+  z-index: 0;
+}
+
+.scrub-highlight {
+  position: absolute;
+  top: 50%;
+  height: 8px;
+  transform: translateY(-50%);
+  background: var(--accent);
+  border-radius: 4px;
+  z-index: 1;
+  display: none;
+  pointer-events: none;
+}
+
+.scrub-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  background: var(--accent);
+  border-radius: 50%;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.controls button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.controls button:hover {
+  border-color: var(--accent);
+}
+
+#btn-play {
+  width: 60px;
+  height: 60px;
+  font-size: 1.4rem;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0c1222;
+}
+
+.panel {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-group label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.checkbox-group {
+  justify-content: center;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.speed-row {
+  margin-top: 18px;
+}
+
+.speed-row label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+#speed-label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+#btn-save-config,
+#btn-pick-folder,
+.backup-row button {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#btn-save-config:hover,
+#btn-pick-folder:hover,
+.backup-row button:hover {
+  border-color: var(--accent);
+}
+
+#save-status {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.range-save-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+#range-note {
+  flex: 1;
+  min-width: 0;
+}
+
+#btn-save-range {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#btn-save-range:hover {
+  border-color: var(--accent);
+}
+
+#range-save-status {
+  color: var(--accent);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ranges-panel {
+  margin-top: 22px;
+}
+
+.ranges-panel h2 {
+  font-size: 1rem;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ranges-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ranges-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 12px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin: 0;
+}
+
+.range-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.range-item:hover {
+  border-color: var(--accent);
+}
+
+.range-times {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.range-note {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-delete-range {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.btn-delete-range:hover {
+  color: #ff6b6b;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+#backup-status {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.hint {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .panel {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
