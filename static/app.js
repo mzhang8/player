@@ -38,25 +38,76 @@ let currentRanges = [];
 let isScrubbing = false;
 
 const VIDEO_EXTENSIONS = [".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"];
-const CONFIGS_KEY = "practice-player:configs";
+const CONFIGS_FILE = "configs.json";
+// Where settings were kept before they moved into the videos folder.
+const LEGACY_CONFIGS_KEY = "practice-player:configs";
 
+let currentFolder = null;
 // Video files in the chosen folder, by name (FileSystemFileHandle values).
 let videoFiles = new Map();
 let currentObjectUrl = null;
 // A remembered folder that Chrome needs a click to re-grant access to.
 let folderAwaitingPermission = null;
 
-// Per-video settings and saved sections, same shape as the Flask app's configs.json.
-function loadConfigs() {
+// Per-video settings and saved sections, kept in configs.json inside the videos folder
+// (same shape as the Flask app's configs.json).
+let configs = {};
+// Set when the folder's configs.json can't be parsed, so it never gets overwritten.
+let configsUnreadable = false;
+
+async function readConfigsFile(folder) {
+  let file;
   try {
-    return JSON.parse(localStorage.getItem(CONFIGS_KEY)) || {};
+    file = await (await folder.getFileHandle(CONFIGS_FILE)).getFile();
   } catch (e) {
-    return {};
+    if (e.name === "NotFoundError") return {};
+    throw e;
   }
+  const parsed = JSON.parse(await file.text());
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${CONFIGS_FILE} isn't a settings file`);
+  }
+  return parsed;
 }
 
-function saveConfigs(configs) {
-  localStorage.setItem(CONFIGS_KEY, JSON.stringify(configs));
+async function saveConfigs() {
+  if (!currentFolder) throw new Error("Choose a videos folder first.");
+  if (configsUnreadable) {
+    throw new Error(`${CONFIGS_FILE} in this folder couldn't be read, so it wasn't overwritten.`);
+  }
+  const handle = await currentFolder.getFileHandle(CONFIGS_FILE, { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(JSON.stringify(configs, null, 2));
+  await writable.close();
+}
+
+// Merges `incoming` into `base`. Settings from `incoming` win; saved sections are
+// combined, skipping duplicates.
+function mergeConfigs(base, incoming) {
+  for (const [name, entry] of Object.entries(incoming)) {
+    const existing = base[name] || {};
+    const ranges = [...(existing.ranges || [])];
+    for (const r of entry.ranges || []) {
+      if (!ranges.some((x) => x.id === r.id)) ranges.push(r);
+    }
+    base[name] = { ...existing, ...entry, ranges };
+  }
+  return base;
+}
+
+// Moves settings saved by the earlier, browser-storage version of this page into
+// the folder's configs.json (the file's own settings win).
+async function migrateLegacyConfigs() {
+  let legacy;
+  try {
+    legacy = JSON.parse(localStorage.getItem(LEGACY_CONFIGS_KEY));
+  } catch (e) {
+    return;
+  }
+  if (!legacy || typeof legacy !== "object" || configsUnreadable) return;
+  configs = mergeConfigs(legacy, configs);
+  await saveConfigs();
+  localStorage.removeItem(LEGACY_CONFIGS_KEY);
 }
 
 function flashStatus(el, text, ms = 1500) {
@@ -196,25 +247,53 @@ async function loadVideoList(folder) {
   folderStatus.textContent = `${videos.length} video${videos.length === 1 ? "" : "s"} in “${folder.name}”`;
 }
 
+async function openFolder(folder) {
+  currentFolder = folder;
+  video.removeAttribute("src");
+  video.load();
+  renderRanges([]);
+
+  configsUnreadable = false;
+  try {
+    configs = await readConfigsFile(folder);
+  } catch (e) {
+    configs = {};
+    configsUnreadable = true;
+  }
+  let migrateError = null;
+  try {
+    await migrateLegacyConfigs();
+  } catch (e) {
+    migrateError = e;
+  }
+
+  await loadVideoList(folder);
+  if (configsUnreadable) {
+    folderStatus.textContent += ` — couldn't read ${CONFIGS_FILE}, so changes won't be saved until it's fixed or removed.`;
+  } else if (migrateError) {
+    folderStatus.textContent += ` — couldn't save ${CONFIGS_FILE}: ${migrateError.message}`;
+  }
+}
+
 async function pickFolder() {
   let folder;
   try {
-    folder = await window.showDirectoryPicker({ id: "videos", startIn: "downloads" });
+    folder = await window.showDirectoryPicker({ id: "videos", mode: "readwrite", startIn: "downloads" });
   } catch (e) {
     if (e.name !== "AbortError") folderStatus.textContent = `Couldn't open that folder: ${e.message}`;
     return;
   }
   folderAwaitingPermission = null;
   await rememberFolder(folder);
-  await loadVideoList(folder);
+  await openFolder(folder);
 }
 
 async function onPickFolderClick() {
   if (folderAwaitingPermission) {
     const folder = folderAwaitingPermission;
-    if ((await folder.requestPermission({ mode: "read" })) === "granted") {
+    if ((await folder.requestPermission({ mode: "readwrite" })) === "granted") {
       folderAwaitingPermission = null;
-      await loadVideoList(folder);
+      await openFolder(folder);
       return;
     }
   }
@@ -229,8 +308,8 @@ async function restoreFolder() {
   }
   const folder = await getSavedFolder().catch(() => null);
   if (!folder) return;
-  if ((await folder.queryPermission({ mode: "read" })) === "granted") {
-    await loadVideoList(folder);
+  if ((await folder.queryPermission({ mode: "readwrite" })) === "granted") {
+    await openFolder(folder);
     return;
   }
   // Chrome only re-grants access after a click.
@@ -239,7 +318,7 @@ async function restoreFolder() {
 }
 
 function loadConfigForVideo(name) {
-  const cfg = loadConfigs()[name] || {};
+  const cfg = configs[name] || {};
 
   startInput.value = cfg.start != null ? fmtTime(cfg.start) : "";
   endInput.value = cfg.end != null ? fmtTime(cfg.end) : "";
@@ -253,7 +332,7 @@ function loadConfigForVideo(name) {
   skipInput.value = cfg.skip != null ? cfg.skip : 1;
 
   rangeNoteInput.value = "";
-  renderRanges(cfg.ranges || []);
+  renderRanges([...(cfg.ranges || [])]);
   updateRangeHighlight();
 }
 
@@ -327,12 +406,16 @@ async function saveCurrentRange() {
   }
 
   const note = rangeNoteInput.value.trim();
-  const configs = loadConfigs();
   const entry = configs[name] || (configs[name] = {});
   const ranges = entry.ranges || (entry.ranges = []);
   const newRange = { id: crypto.randomUUID().replaceAll("-", "").slice(0, 8), start, end, note };
   ranges.push(newRange);
-  saveConfigs(configs);
+  try {
+    await saveConfigs();
+  } catch (e) {
+    flashStatus(rangeSaveStatus, `Not saved: ${e.message}`, 5000);
+    return;
+  }
   currentRanges.push(newRange);
   renderRanges(currentRanges);
   rangeNoteInput.value = "";
@@ -342,20 +425,24 @@ async function saveCurrentRange() {
   }, 1500);
 }
 
-function deleteRange(id) {
+async function deleteRange(id) {
   const name = videoSelect.value;
   if (!name) return;
-  const configs = loadConfigs();
   const entry = configs[name];
   if (entry && entry.ranges) {
     entry.ranges = entry.ranges.filter((r) => r.id !== id);
-    saveConfigs(configs);
+    try {
+      await saveConfigs();
+    } catch (e) {
+      flashStatus(rangeSaveStatus, `Not saved: ${e.message}`, 5000);
+      return;
+    }
   }
   currentRanges = currentRanges.filter((r) => r.id !== id);
   renderRanges(currentRanges);
 }
 
-function saveConfigForCurrentVideo() {
+async function saveConfigForCurrentVideo() {
   const name = videoSelect.value;
   if (!name) return;
   const payload = {
@@ -365,9 +452,13 @@ function saveConfigForCurrentVideo() {
     loop: loopCheckbox.checked,
     skip: parseFloat(skipInput.value) || 1,
   };
-  const configs = loadConfigs();
   configs[name] = { ...configs[name], ...payload };
-  saveConfigs(configs);
+  try {
+    await saveConfigs();
+  } catch (e) {
+    flashStatus(saveStatus, `Not saved: ${e.message}`, 5000);
+    return;
+  }
   saveStatus.textContent = "Saved!";
   setTimeout(() => {
     saveStatus.textContent = "";
@@ -375,7 +466,7 @@ function saveConfigForCurrentVideo() {
 }
 
 function exportConfigs() {
-  const blob = new Blob([JSON.stringify(loadConfigs(), null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(configs, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -384,9 +475,13 @@ function exportConfigs() {
   URL.revokeObjectURL(url);
 }
 
-// Merges an exported (or the Flask app's) configs.json into what's saved here.
-// Settings from the file win; saved sections are combined, skipping duplicates.
+// Merges an exported (or the Flask app's) configs.json into the folder's configs.json.
+// Settings from the imported file win; saved sections are combined, skipping duplicates.
 async function importConfigs(file) {
+  if (!currentFolder) {
+    flashStatus(backupStatus, "Choose a videos folder first.", 3000);
+    return;
+  }
   let incoming;
   try {
     incoming = JSON.parse(await file.text());
@@ -398,16 +493,13 @@ async function importConfigs(file) {
     return;
   }
 
-  const configs = loadConfigs();
-  for (const [name, entry] of Object.entries(incoming)) {
-    const existing = configs[name] || {};
-    const ranges = [...(existing.ranges || [])];
-    for (const r of entry.ranges || []) {
-      if (!ranges.some((x) => x.id === r.id)) ranges.push(r);
-    }
-    configs[name] = { ...existing, ...entry, ranges };
+  mergeConfigs(configs, incoming);
+  try {
+    await saveConfigs();
+  } catch (e) {
+    flashStatus(backupStatus, `Not saved: ${e.message}`, 5000);
+    return;
   }
-  saveConfigs(configs);
 
   if (videoSelect.value) loadConfigForVideo(videoSelect.value);
   const count = Object.keys(incoming).length;
